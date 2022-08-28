@@ -152,7 +152,7 @@ pub const Canvas = struct {
     pub fn print(
         self: *Self,
         comptime fmt: []const u8,
-        comptime args: anytype,
+        args: anytype,
     ) std.fmt.AllocPrintError![]const u8 {
         return try std.fmt.allocPrint(self.arena.allocator(), fmt, args);
     }
@@ -163,7 +163,7 @@ pub const Canvas = struct {
         pos: Vec2,
         color: Color,
         comptime fmt: []const u8,
-        comptime args: anytype,
+        args: anytype,
     ) (std.fmt.AllocPrintError || Allocator.Error)!void {
         // ensure Color is being used properly
         comptime {
