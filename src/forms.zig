@@ -4,19 +4,22 @@ const Canvas = @import("canvas.zig").Canvas;
 
 const Allocator = std.mem.Allocator;
 
-pub const TableCol = struct {
+/// generic configuration for a form element
+pub const ElementConfig = struct {
     title: []const u8,
     fmt: []const u8 = "{}",
     color: Color = Color{},
 };
 
-pub fn Table(comptime cols: []const TableCol) type {
+/// constructor for nicely formatted tables
+pub fn Table(comptime cols: []const ElementConfig) type {
     return struct {
         const Self = @This();
 
         const Row = [cols.len][]const u8;
 
         ally: Allocator,
+        arena: std.heap.ArenaAllocator,
         title: []const u8,
         rows: std.ArrayList(Row),
 
@@ -25,32 +28,28 @@ pub fn Table(comptime cols: []const TableCol) type {
             comptime title: []const u8,
             args: anytype
         ) Allocator.Error!Self {
+            var arena = std.heap.ArenaAllocator.init(ally);
+
             return Self{
                 .ally = ally,
-                .title = try std.fmt.allocPrint(ally, title, args),
+                .arena = arena,
+                .title = try std.fmt.allocPrint(arena.allocator(), title, args),
                 .rows = std.ArrayList(Row).init(ally)
             };
         }
 
         pub fn deinit(self: *Self) void {
-            self.ally.free(self.title);
-            self.free_rows();
-        }
-
-        fn free_rows(self: *Self) void {
-            for (self.rows.items) |row| {
-                for (row) |cell| self.ally.free(cell);
-            }
             self.rows.deinit();
+            self.arena.deinit();
         }
 
-        /// allocPrint shorthand
-        fn print(
-            self: Self,
+        /// shorthand for allocPrint()ing on this ally
+        pub fn print(
+            self: *Self,
             comptime fmt: []const u8,
             args: anytype
         ) std.fmt.AllocPrintError![]u8 {
-            return try std.fmt.allocPrint(self.ally, fmt, args);
+            return try std.fmt.allocPrint(self.arena.allocator(), fmt, args);
         }
 
         pub fn add_row(self: *Self, args: anytype) !void {
@@ -68,7 +67,11 @@ pub fn Table(comptime cols: []const TableCol) type {
             try self.rows.append(row);
         }
 
-        pub fn flush(self: *Self, writer: anytype) !void {
+        /// prints out table and deinitializes everything
+        pub fn flush(
+            self: *Self,
+            writer: anytype
+        ) (Allocator.Error || @TypeOf(writer).Error)!void {
             // find column widths
             var widths: [cols.len]usize = undefined;
             inline for (cols) |col, i| widths[i] = col.title.len;
@@ -151,8 +154,87 @@ pub fn Table(comptime cols: []const TableCol) type {
             }
 
             try canvas.flush(writer);
-
             self.rows.shrinkAndFree(0);
         }
     };
+}
+
+/// takes a slice of whatever and formats it nicely!
+pub fn List(comptime cfg: ElementConfig) type {
+    return struct {
+        const Self = @This();
+
+        ally: Allocator,
+        arena: std.heap.ArenaAllocator,
+        list: std.ArrayList([]const u8),
+
+        pub fn init(ally: Allocator) Self {
+            return Self{
+                .ally = ally,
+                .arena = std.heap.ArenaAllocator.init(ally),
+                .list = std.ArrayList([]const u8).init(ally),
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.arena.deinit();
+            self.list.deinit();
+        }
+
+        pub fn print(
+            self: *Self,
+            comptime fmt: []const u8,
+            args: anytype
+        ) std.fmt.AllocPrintError![]u8 {
+            return std.fmt.allocPrint(self.arena.allocator(), fmt, args);
+        }
+
+        pub fn add(
+            self: *Self,
+            elem: anytype
+        ) (std.fmt.AllocPrintError || Allocator.Error)!void {
+            try self.list.append(try self.print(cfg.fmt, .{elem}));
+        }
+
+        pub fn flush(
+            self: *Self,
+            writer: anytype
+        ) (std.fmt.AllocPrintError || @TypeOf(writer).Error)!void {
+            var canvas = Canvas.init(self.ally);
+            defer canvas.deinit();
+
+            try canvas.scribble(.{0, -1}, Color{ .fg = .cyan }, cfg.title, .{});
+
+            for (self.list.items) |elem, i| {
+                const y = @intCast(isize, i);
+
+                const ord = try canvas.print("{} | ", .{i});
+                try canvas.scribble(
+                    .{-@intCast(isize, ord.len), y},
+                    Color{ .fmt = .bold },
+                    "{s}",
+                    .{ord}
+                );
+
+                try canvas.scribble(.{0, y}, cfg.color, "{s}", .{elem});
+            }
+
+            try canvas.flush(writer);
+            self.list.clearAndFree();
+        }
+    };
+}
+
+pub fn fast_list(
+    ally: Allocator,
+    comptime cfg: ElementConfig,
+    elements: anytype,
+    writer: anytype
+) !void {
+    var list = List(cfg).init(ally);
+    defer list.deinit();
+
+    for (elements) |elem| try list.add(elem);
+
+    try list.flush(writer);
 }
