@@ -1,5 +1,5 @@
 //! exports for kritzler lib, for ease of adding to build files
 
-pub const Color = @import("src/color.zig");
-usingnamespace @import("src/canvas.zig");
-usingnamespace @import("src/forms.zig");
+usingnamespace @import("src/types.zig");
+usingnamespace @import("src/format.zig");
+pub const Texture = @import("src/texture.zig");
