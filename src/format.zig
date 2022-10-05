@@ -1,0 +1,91 @@
+//! formatting for kritzler
+
+const std = @import("std");
+const Texture = @import("texture.zig");
+
+/// ANSI SGR foreground colors
+pub const Color = enum(u8) {
+    const Self = @This();
+
+    black = 30,
+    red = 31,
+    green = 32,
+    yellow = 33,
+    blue = 34,
+    magenta = 35,
+    cyan = 36,
+    light_gray = 37,
+
+    default = 39,
+
+    dark_gray = 90,
+    bright_red = 91,
+    bright_green = 92,
+    bright_yellow = 93,
+    bright_blue = 94,
+    bright_magenta = 95,
+    bright_cyan = 96,
+    white = 97,
+
+    pub fn fgCode(self: Self) u8 {
+        return @enumToInt(self);
+    }
+
+    pub fn bgCode(self: Self) u8 {
+        return @enumToInt(self) + 10;
+    }
+};
+
+pub const Format = union(enum) {
+    const Self = @This();
+
+    const Special = enum(u8) {
+        reset = 0,
+        bold = 1,
+        faint = 2,
+        italic = 3,
+        underline = 4,
+        blink = 5,
+        fast_blink = 6,
+
+        crossed_out = 9,
+    };
+
+    pub const RESET = Self{ .special = .reset };
+
+    special: Special,
+    colors: struct {
+        fg: Color,
+        bg: Color,
+    },
+
+    pub fn of_special(special: Special) Self {
+        return Self{ .special = special };
+    }
+
+    pub fn of_colors(fg: Color, bg: Color) Self {
+        return Self{ .colors = .{ .fg = fg, .bg = bg } };
+    }
+
+    pub fn format(
+        self: Self,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype
+    ) @TypeOf(writer).Error!void {
+        _ = fmt;
+        _ = options;
+
+        switch (self) {
+            .special => |special| {
+                try writer.print("\x1b[{}m", .{@enumToInt(special)});
+            },
+            .colors => |colors| {
+                try writer.print("\x1b[{};{}m", .{
+                    colors.fg.fgCode(),
+                    colors.bg.bgCode(),
+                });
+            }
+        }
+    }
+};
