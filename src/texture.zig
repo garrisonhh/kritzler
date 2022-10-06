@@ -80,6 +80,23 @@ fn indexOf(self: Self, pos: Pos) usize {
     return pos[1] * self.size[0] + pos[0];
 }
 
+pub fn set(self: *Self, pos: Pos, fmt: Format, char: u8) void {
+    self.buf[self.indexOf(pos)] = Cell.of(fmt, char);
+}
+
+pub fn write(self: *Self, pos: Pos, fmt: Format, text: []const u8) void {
+    var cursor = pos;
+    for (text) |ch| {
+        if (ch == '\n') {
+            cursor[1] += 1;
+            cursor[0] = pos[0];
+        } else {
+            self.set(cursor, fmt, ch);
+            cursor[0] += 1;
+        }
+    }
+}
+
 /// draw a texture onto this one. in order to avoid allocations, any bits of
 /// the old texture which go out of bounds are ignored.
 pub fn blit(self: *Self, tex: *const Self, to: Offset) void {
@@ -138,6 +155,58 @@ pub fn unify(
     stacked.blit(tex, to - unified.offset);
 
     return stacked;
+}
+
+pub const SlapAlign = enum { close, center, far };
+pub const SlapDirection = enum {
+    left,
+    right,
+    top,
+    bottom,
+
+    fn flip(self: @This()) @This() {
+        return switch (self) {
+            .left => .right,
+            .right => .left,
+            .top => .bottom,
+            .bottom => .top,
+        };
+    }
+};
+
+fn calcSlapPos(size: Pos, dir: SlapDirection, aln: SlapAlign) Pos {
+    // find side vertices
+    const a: Pos = switch (dir) {
+        .left, .top => .{0, 0},
+        .right => .{size[0], 0},
+        .bottom => .{0, size[1]},
+    };
+    const b: Pos = switch (dir) {
+        .left => .{0, size[1]},
+        .top => .{size[0], 0},
+        .right, .bottom => size,
+    };
+
+    // interpolate
+    return a + switch (aln) {
+        .close => Pos{0, 0},
+        .center => (b - a) / Pos{2, 2},
+        .far => b - a,
+    };
+}
+
+/// "slap" a texture to a side of this one
+pub fn slap(
+    self: Self,
+    ally: Allocator,
+    tex: *const Self,
+    dir: SlapDirection,
+    aln: SlapAlign
+) Allocator.Error!Self {
+    const slap_pos = types.toOffset(calcSlapPos(self.size, dir, aln))
+                   - types.toOffset(calcSlapPos(tex.size, dir.flip(), aln));
+
+    return try self.unify(ally, tex, slap_pos);
 }
 
 pub fn fill(self: *Self, fmt: Format, char: u8) void {
