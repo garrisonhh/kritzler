@@ -36,7 +36,7 @@ pub const Color = enum(u8) {
     }
 };
 
-pub const Format = union(enum) {
+pub const Format = struct {
     const Self = @This();
 
     const Special = enum(u8) {
@@ -53,19 +53,9 @@ pub const Format = union(enum) {
 
     pub const RESET = Self{ .special = .reset };
 
-    special: Special,
-    colors: struct {
-        fg: Color,
-        bg: Color,
-    },
-
-    pub fn of_special(special: Special) Self {
-        return Self{ .special = special };
-    }
-
-    pub fn of_colors(fg: Color, bg: Color) Self {
-        return Self{ .colors = .{ .fg = fg, .bg = bg } };
-    }
+    special: ?Special = null,
+    fg: Color = .default,
+    bg: Color = .default,
 
     pub fn format(
         self: Self,
@@ -76,16 +66,13 @@ pub const Format = union(enum) {
         _ = fmt;
         _ = options;
 
-        switch (self) {
-            .special => |special| {
-                try writer.print("\x1b[{}m", .{@enumToInt(special)});
-            },
-            .colors => |colors| {
-                try writer.print("\x1b[{};{}m", .{
-                    colors.fg.fgCode(),
-                    colors.bg.bgCode(),
-                });
-            }
+        if (self.special) |special| {
+            try writer.print("\x1b[{}m", .{@enumToInt(special)});
         }
+
+        try writer.print("\x1b[{};{}m", .{
+            self.fg.fgCode(),
+            self.bg.bgCode(),
+        });
     }
 };

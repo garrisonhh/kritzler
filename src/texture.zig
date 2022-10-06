@@ -115,7 +115,7 @@ pub fn blit(self: *Self, tex: *const Self, to: Offset) void {
 }
 
 /// creates a new texture by drawing two textures on top of each other
-pub fn drawStacked(
+pub fn unify(
     self: Self,
     ally: Allocator,
     tex: *const Self,
