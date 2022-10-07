@@ -24,8 +24,6 @@ buf: []Cell,
 size: Pos,
 
 pub fn init(ally: Allocator, size: types.Pos) Allocator.Error!Self {
-    std.debug.assert(size[0] > 0 and size[1] > 0);
-
     const buf = try ally.alloc(Cell, size[0] * size[1]);
     std.mem.set(Cell, buf, Cell.of(Format.RESET, ' '));
 
@@ -65,11 +63,24 @@ pub fn from(
     return tex;
 }
 
+/// use zig's std.fmt to print to a texture
+pub fn print(
+    ally: Allocator,
+    fmt: Format,
+    comptime fmt_str: []const u8,
+    fmt_args: anytype
+) std.fmt.AllocPrintError!Self {
+    const text = try std.fmt.allocPrint(ally, fmt_str, fmt_args);
+    defer ally.free(text);
+
+    return try Self.from(ally, fmt, text);
+}
+
 pub fn deinit(self: Self, ally: Allocator) void {
     ally.free(self.buf);
 }
 
-pub fn clone(self: Self, ally: Allocator,) Allocator.Error!Self {
+pub fn clone(self: Self, ally: Allocator) Allocator.Error!Self {
     return Self{
         .buf = try ally.dupe(Cell, self.buf),
         .size = self.size,
