@@ -1,6 +1,7 @@
 //! formatting for kritzler
 
 const std = @import("std");
+const builtin = @import("builtin");
 const Texture = @import("texture.zig");
 
 /// ANSI SGR foreground colors
@@ -53,7 +54,7 @@ pub const Format = struct {
 
     pub const RESET = Self{ .special = .reset };
 
-    special: ?Special = null,
+    special: Special = .reset,
     fg: Color = .default,
     bg: Color = .default,
 
@@ -66,11 +67,8 @@ pub const Format = struct {
         _ = fmt;
         _ = options;
 
-        if (self.special) |special| {
-            try writer.print("\x1b[{}m", .{@enumToInt(special)});
-        }
-
-        try writer.print("\x1b[{};{}m", .{
+        try writer.print("\x1b[{}m\x1b[{};{}m", .{
+            @enumToInt(self.special),
             self.fg.fgCode(),
             self.bg.bgCode(),
         });
