@@ -110,7 +110,7 @@ pub fn write(self: *Self, pos: Pos, fmt: Format, text: []const u8) void {
 
 /// draw a texture onto this one. in order to avoid allocations, any bits of
 /// the old texture which go out of bounds are ignored.
-pub fn blit(self: *Self, tex: *const Self, to: Offset) void {
+pub fn blit(self: *Self, tex: Self, to: Offset) void {
     // find texture intersection
     const target = Rect{
         .offset = to,
@@ -124,7 +124,7 @@ pub fn blit(self: *Self, tex: *const Self, to: Offset) void {
         return;
     };
 
-    const pos = types.toPos(isect.offset) catch unreachable;
+    const pos = types.toPos(isect.offset);
     const row_len = isect.size[0];
 
     // copy rows
@@ -146,7 +146,7 @@ pub fn blit(self: *Self, tex: *const Self, to: Offset) void {
 pub fn unify(
     self: Self,
     ally: Allocator,
-    tex: *const Self,
+    tex: Self,
     to: Offset
 ) Allocator.Error!Self {
     // find size of new tex
@@ -162,7 +162,7 @@ pub fn unify(
     // blit two textures onto stacked tex
     var stacked = try Self.init(ally, unified.size);
 
-    stacked.blit(&self, -unified.offset);
+    stacked.blit(self, -unified.offset);
     stacked.blit(tex, to - unified.offset);
 
     return stacked;
@@ -210,7 +210,7 @@ fn calcSlapPos(size: Pos, dir: SlapDirection, aln: SlapAlign) Pos {
 pub fn slap(
     self: Self,
     ally: Allocator,
-    tex: *const Self,
+    tex: Self,
     dir: SlapDirection,
     aln: SlapAlign
 ) Allocator.Error!Self {
@@ -218,6 +218,29 @@ pub fn slap(
                    - types.toOffset(calcSlapPos(tex.size, dir.flip(), aln));
 
     return try self.unify(ally, tex, slap_pos);
+}
+
+/// slap a bunch of textures together
+pub fn stack(
+    ally: Allocator,
+    textures: []const Self,
+    dir: SlapDirection,
+    aln: SlapAlign
+) Allocator.Error!Self {
+    return switch (textures.len) {
+        0 => try Self.init(ally, .{0, 0}),
+        1 => try textures[0].clone(ally),
+        else => stack: {
+            var stacked = try Self.init(ally, .{0, 0});
+            for (textures) |tex| {
+                const slapped = try stacked.slap(ally, tex, dir, aln);
+                stacked.deinit(ally);
+                stacked = slapped;
+            }
+
+            break :stack stacked;
+        }
+    };
 }
 
 pub fn fill(self: *Self, fmt: Format, char: u8) void {

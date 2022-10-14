@@ -5,8 +5,6 @@ const std = @import("std");
 pub const Pos = @Vector(2, usize);
 pub const Offset = @Vector(2, isize);
 
-pub const OverflowError = error { Overflow };
-
 pub fn toOffset(pos: Pos) Offset {
     return Offset{
         @intCast(isize, pos[0]),
@@ -14,10 +12,10 @@ pub fn toOffset(pos: Pos) Offset {
     };
 }
 
-pub fn toPos(offset: Offset) OverflowError!Pos {
+pub fn toPos(offset: Offset) Pos {
     return Pos{
-        try std.math.cast(usize, offset[0]),
-        try std.math.cast(usize, offset[1])
+        @intCast(usize, offset[0]),
+        @intCast(usize, offset[1]),
     };
 }
 
@@ -41,7 +39,7 @@ pub const Rect = struct {
 
         return Self{
             .offset = offset,
-            .size = toPos(isect_size) catch unreachable,
+            .size = toPos(isect_size),
         };
     }
 
@@ -54,7 +52,7 @@ pub const Rect = struct {
 
         return Self{
             .offset = offset,
-            .size = toPos(union_size) catch unreachable,
+            .size = toPos(union_size),
         };
     }
 };
