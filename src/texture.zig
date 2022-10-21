@@ -91,11 +91,11 @@ fn indexOf(self: Self, pos: Pos) usize {
     return pos[1] * self.size[0] + pos[0];
 }
 
-pub fn set(self: *Self, pos: Pos, fmt: Format, char: u8) void {
+pub fn set(self: Self, pos: Pos, fmt: Format, char: u8) void {
     self.buf[self.indexOf(pos)] = Cell.of(fmt, char);
 }
 
-pub fn write(self: *Self, pos: Pos, fmt: Format, text: []const u8) void {
+pub fn write(self: Self, pos: Pos, fmt: Format, text: []const u8) void {
     var cursor = pos;
     for (text) |ch| {
         if (ch == '\n') {
@@ -110,7 +110,7 @@ pub fn write(self: *Self, pos: Pos, fmt: Format, text: []const u8) void {
 
 /// draw a texture onto this one. in order to avoid allocations, any bits of
 /// the old texture which go out of bounds are ignored.
-pub fn blit(self: *Self, tex: Self, to: Offset) void {
+pub fn blit(self: Self, tex: Self, to: Offset) void {
     // find texture intersection
     const target = Rect{
         .offset = to,
