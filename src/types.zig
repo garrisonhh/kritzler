@@ -26,11 +26,11 @@ pub const Rect = struct {
     size: Pos,
 
     pub fn intersectionWith(self: Self, other: Self) ?Self {
-        const offset = @maximum(self.offset, other.offset);
+        const offset = @max(self.offset, other.offset);
 
         const size_self = self.offset + toOffset(self.size) - offset;
         const size_other = other.offset + toOffset(other.size) - offset;
-        const isect_size = @minimum(size_self, size_other);
+        const isect_size = @min(size_self, size_other);
 
         // find intersection
         if (isect_size[0] < 0 or isect_size[1] < 0) {
@@ -44,11 +44,11 @@ pub const Rect = struct {
     }
 
     pub fn unionWith(self: Self, other: Self) Self {
-        const offset = @minimum(self.offset, other.offset);
+        const offset = @min(self.offset, other.offset);
 
         const size_self = self.offset + toOffset(self.size) - offset;
         const size_other = other.offset + toOffset(other.size) - offset;
-        const union_size = @maximum(size_self, size_other);
+        const union_size = @max(size_self, size_other);
 
         return Self{
             .offset = offset,
