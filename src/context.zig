@@ -307,6 +307,21 @@ pub fn slap(
     return try self.unify(a, b, final);
 }
 
+/// reduce a series of slaps
+pub fn stack(
+    self: *Self,
+    refs: []const Ref,
+    dir: SlapDirection,
+    opt: SlapOpt
+) Allocator.Error!Ref {
+    var stacked = self.stub();
+    for (refs) |ref| {
+        stacked = try self.slap(stacked, ref, dir, opt);
+    }
+
+    return stacked;
+}
+
 // displaying chunks ===========================================================
 
 const WriteBuffer = struct {
