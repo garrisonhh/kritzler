@@ -314,12 +314,18 @@ pub fn stack(
     dir: SlapDirection,
     opt: SlapOpt
 ) Allocator.Error!Ref {
-    var stacked = self.stub();
-    for (refs) |ref| {
-        stacked = try self.slap(stacked, ref, dir, opt);
-    }
+    return switch (refs.len) {
+        0 => self.stub(),
+        1 => refs[0],
+        else => stack: {
+            var stacked = refs[0];
+            for (refs[1..]) |ref| {
+                stacked = try self.slap(stacked, ref, dir, opt);
+            }
 
-    return stacked;
+            break :stack stacked;
+        }
+    };
 }
 
 // displaying chunks ===========================================================
