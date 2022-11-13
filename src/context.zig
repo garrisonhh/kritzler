@@ -68,10 +68,12 @@ fn get(self: *Self, ref: Ref) *Chunk {
 }
 
 /// frees up a chunk for reuse
-fn drop(self: *Self, ref: Ref) void {
+fn drop(self: *Self, ref: Ref) Allocator.Error!void {
     self.get(ref).gen += 1;
-    try self.reusable.append(ref.index);
+    try self.reusable.append(self.ally, ref.index);
 }
+
+// creating chunks =============================================================
 
 /// creates a chunk, returns pointer for convenience
 fn new(self: *Self, size: Pos) Allocator.Error!Ref {
@@ -106,11 +108,13 @@ fn new(self: *Self, size: Pos) Allocator.Error!Ref {
 
 /// create a new, blank chunk of a certain size
 pub fn blank(self: *Self, size: Pos) Allocator.Error!Ref {
-    const res = try self.new(size);
-    std.mem.set(Style, res.chunk.styles, .{});
-    std.mem.set(u8, res.chunk.text, ' ');
+    const ref = try self.new(size);
+    const chunk = self.get(ref);
 
-    return res.ref;
+    std.mem.set(Style, chunk.styles, .{});
+    std.mem.set(u8, chunk.text, ' ');
+
+    return ref;
 }
 
 /// create a chunk without a size (useful in some situations)
@@ -121,7 +125,7 @@ pub fn stub(self: *Self) Ref {
 /// create a copy of another chunk
 pub fn clone(self: *Self, ref: Ref) Allocator.Error!Ref {
     const old = self.get(ref).*;
-    const new_ref = self.new(old.size);
+    const new_ref = try self.new(old.size);
     const chunk = self.get(new_ref);
 
     std.mem.copy(Style, chunk.styles, old.styles);
@@ -181,6 +185,129 @@ pub fn print(
 
     return ref;
 }
+
+// getters =====================================================================
+
+pub fn getSize(self: *Self, ref: Ref) Pos {
+    return self.get(ref).size;
+}
+
+// chunk operations ============================================================
+
+/// write src over dst at a position. this expects everything to already be
+/// bounds-checked.
+fn blit(dst: *Chunk, src: *const Chunk, pos: Pos) void {
+    var y: usize = 0;
+    while (y < src.size[1]) : (y += 1) {
+        // get src slices
+        const start = y * src.size[0];
+        const end = start + src.size[0];
+        const line_styles = src.styles[start..end];
+        const line = src.text[start..end];
+
+        // find dst index and memcpy
+        const cursor = (pos[1] + y) * dst.size[0] + pos[0];
+        std.mem.copy(Style, dst.styles[cursor..], line_styles);
+        std.mem.copy(u8, dst.text[cursor..], line);
+    }
+}
+
+/// draw chunk `b` over chunk `a` at offset `to`
+pub fn unify(
+    self: *Self,
+    a: Ref,
+    b: Ref,
+    to: Offset
+) Allocator.Error!Ref {
+    // find size of new chunk
+    const target = Rect.init(to, self.getSize(b));
+    const unified = target.unionWith(Rect.init(.{0, 0}, self.getSize(a)));
+
+    // create new chunk and blit
+    const ref = try self.blank(unified.size);
+    const chunk = self.get(ref);
+
+    blit(chunk, self.get(a), types.toPos(-unified.offset));
+    blit(chunk, self.get(b), types.toPos(to - unified.offset));
+    try self.drop(a);
+    try self.drop(b);
+
+    return ref;
+}
+
+pub const SlapAlign = enum { close, center, far };
+pub const SlapDirection = enum {
+    left,
+    right,
+    top,
+    bottom,
+
+    fn flip(self: @This()) @This() {
+        return switch (self) {
+            .left => .right,
+            .right => .left,
+            .top => .bottom,
+            .bottom => .top,
+        };
+    }
+};
+
+fn slapOffset(size: Pos, dir: SlapDirection, aln: SlapAlign) Offset {
+    const ssize = types.toOffset(size);
+
+    // find side vertices
+    const a: Offset = switch (dir) {
+        .left, .top => .{0, 0},
+        .right => .{ssize[0], 0},
+        .bottom => .{0, ssize[1]},
+    };
+    const b: Offset = switch (dir) {
+        .left => .{0, ssize[1]},
+        .top => .{ssize[0], 0},
+        .right, .bottom => ssize,
+    };
+
+    // interpolate with alignment
+    return a + switch (aln) {
+        .close => Offset{ 0, 0 },
+        .center => (b - a) / Offset{ 2, 2 },
+        .far => b - a,
+    };
+}
+
+fn slapSpacing(dir: SlapDirection, space: usize) Offset {
+    const ispace = @intCast(isize, space);
+    return switch (dir) {
+        .left => .{-ispace, 0},
+        .right => .{ispace, 0},
+        .top => .{0, -ispace},
+        .bottom => .{0, ispace},
+    };
+}
+
+pub const SlapOpt = struct {
+    aln: SlapAlign = .close,
+    space: usize = 0,
+};
+
+/// instead of using numbers, slap lets you declare qualitatively where to
+/// put b in relation to a.
+pub fn slap(
+    self: *Self,
+    a: Ref,
+    b: Ref,
+    dir: SlapDirection,
+    opt: SlapOpt
+) Allocator.Error!Ref {
+    const dst_offset = slapOffset(self.getSize(a), dir, opt.aln);
+    const src_offset = slapOffset(self.getSize(b), dir.flip(), opt.aln);
+    const spacing = slapSpacing(dir, opt.space);
+    const final = dst_offset - src_offset + spacing;
+
+    return try self.unify(a, b, final);
+}
+
+// displaying chunks ===========================================================
 
 const WriteBuffer = struct {
     style: Style = .{},

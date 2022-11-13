@@ -6,10 +6,7 @@ pub const Pos = @Vector(2, usize);
 pub const Offset = @Vector(2, isize);
 
 pub fn toOffset(pos: Pos) Offset {
-    return Offset{
-        @intCast(isize, pos[0]),
-        @intCast(isize, pos[1])
-    };
+    return Offset{ @intCast(isize, pos[0]), @intCast(isize, pos[1]) };
 }
 
 pub fn toPos(offset: Offset) Pos {
@@ -24,6 +21,13 @@ pub const Rect = struct {
 
     offset: Offset,
     size: Pos,
+
+    pub fn init(offset: Offset, size: Pos) Self {
+        return Self{
+            .offset = offset,
+            .size = size,
+        };
+    }
 
     pub fn intersectionWith(self: Self, other: Self) ?Self {
         const offset = @max(self.offset, other.offset);
