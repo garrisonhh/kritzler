@@ -62,6 +62,9 @@ const stdout = @import("std").io.getStdout().writer();
 try ctx.write(ref, stdout);
 ```
 
+*this isn't perfectly exhaustive, but it covers everyhing you need to start
+effectively using kritzler. start with reading context.zig if you need more.*
+
 ## basic primitives
 
 ### `Ref`
