@@ -20,7 +20,7 @@ const Rect = types.Rect;
 const Self = @This();
 
 /// the kritzler primitive
-pub const Chunk = struct {
+const Chunk = struct {
     gen: u32,
     styles: []Style,
     text: []u8,
@@ -50,6 +50,10 @@ pub fn deinit(self: *Self) void {
     self.reusable.deinit(self.ally);
 }
 
+pub fn numActiveRefs(self: Self) usize {
+    return self.chunks.items.len - self.reusable.items.len;
+}
+
 fn assertCurrent(self: *Self, ref: Ref) void {
     if (builtin.mode == .Debug) {
         if (self.chunks.items[ref.index].gen != ref.gen) {
@@ -68,9 +72,10 @@ fn get(self: *Self, ref: Ref) *Chunk {
 }
 
 /// frees up a chunk for reuse
-fn drop(self: *Self, ref: Ref) Allocator.Error!void {
+pub fn drop(self: *Self, ref: Ref) void {
     self.get(ref).gen += 1;
-    try self.reusable.append(self.ally, ref.index);
+    // capacity is assured in new()
+    self.reusable.appendAssumeCapacity(ref.index);
 }
 
 // creating chunks =============================================================
@@ -88,9 +93,10 @@ fn new(self: *Self, size: Pos) Allocator.Error!Ref {
         chunk.deinit(self.ally);
     } else {
         // create new slot
-        index = @truncate(u32, self.chunks.items.len);
+        index = @intCast(u32, self.chunks.items.len);
         chunk = try self.chunks.addOne(self.ally);
         chunk.gen = 0;
+        try self.reusable.ensureTotalCapacity(self.ally, self.chunks.items.len);
     }
 
     chunk.size = size;
@@ -118,8 +124,8 @@ pub fn blank(self: *Self, size: Pos) Allocator.Error!Ref {
 }
 
 /// create a chunk without a size (useful in some situations)
-pub fn stub(self: *Self) Ref {
-    return self.new(.{0, 0}) catch unreachable;
+pub fn stub(self: *Self) Allocator.Error!Ref {
+    return self.new(.{0, 0});
 }
 
 /// create a copy of another chunk
@@ -229,8 +235,8 @@ pub fn unify(
 
     blit(chunk, self.get(a), types.toPos(-unified.offset));
     blit(chunk, self.get(b), types.toPos(to - unified.offset));
-    try self.drop(a);
-    try self.drop(b);
+    self.drop(a);
+    self.drop(b);
 
     return ref;
 }
@@ -241,7 +247,6 @@ pub const SlapDirection = enum {
     right,
     top,
     bottom,
-
     fn flip(self: @This()) @This() {
         return switch (self) {
             .left => .right,
@@ -373,13 +378,14 @@ const WriteBuffer = struct {
     }
 };
 
-/// write a chunk to a writer
+/// write a chunk to a writer and drop the ref
 pub fn write(
     self: *Self,
     ref: Ref,
     writer: anytype
 ) @TypeOf(writer).Error!void {
     const chunk = self.get(ref);
+    defer self.drop(ref);
 
     var buf = WriteBuffer{};
     var y: usize = 0;
