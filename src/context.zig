@@ -219,6 +219,7 @@ fn blit(dst: *Chunk, src: *const Chunk, pos: Pos) void {
 }
 
 /// draw chunk `b` over chunk `a` at offset `to`
+/// drops both chunks
 pub fn unify(
     self: *Self,
     a: Ref,
@@ -297,6 +298,8 @@ pub const SlapOpt = struct {
 
 /// instead of using numbers, slap lets you declare qualitatively where to
 /// put b in relation to a.
+///
+/// drops both chunks
 pub fn slap(
     self: *Self,
     a: Ref,
@@ -313,6 +316,8 @@ pub fn slap(
 }
 
 /// reduce a series of slaps
+///
+/// all refs are dropped
 pub fn stack(
     self: *Self,
     refs: []const Ref,
