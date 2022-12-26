@@ -161,12 +161,10 @@ pub fn print(
     while (line_iter.next()) |line| try lines.append(line);
 
     // remove trailing newlines
-    if (lines.items.len > 0) {
-        while (true) {
-            const last = lines.items[lines.items.len - 1];
-            if (last.len > 0) break;
-            _ = lines.pop();
-        }
+    while (lines.items.len > 0) {
+        const last = lines.items[lines.items.len - 1];
+        if (last.len > 0) break;
+        _ = lines.pop();
     }
 
     // find size of chunk
