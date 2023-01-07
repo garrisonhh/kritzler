@@ -112,6 +112,16 @@ fn new(self: *Self, size: Pos) Allocator.Error!Ref {
     };
 }
 
+pub fn block(self: *Self, size: Pos, sty: Style, ch: u8) Allocator.Error!Ref {
+    const ref = try self.new(size);
+    const chunk = self.get(ref);
+
+    std.mem.set(Style, chunk.styles, sty);
+    std.mem.set(u8, chunk.text, ch);
+
+    return ref;
+}
+
 /// create a new, blank chunk of a certain size
 pub fn blank(self: *Self, size: Pos) Allocator.Error!Ref {
     const ref = try self.new(size);
