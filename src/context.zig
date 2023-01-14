@@ -112,6 +112,16 @@ fn new(self: *Self, size: Pos) Allocator.Error!Ref {
     };
 }
 
+pub fn block(self: *Self, size: Pos, sty: Style, ch: u8) Allocator.Error!Ref {
+    const ref = try self.new(size);
+    const chunk = self.get(ref);
+
+    std.mem.set(Style, chunk.styles, sty);
+    std.mem.set(u8, chunk.text, ch);
+
+    return ref;
+}
+
 /// create a new, blank chunk of a certain size
 pub fn blank(self: *Self, size: Pos) Allocator.Error!Ref {
     const ref = try self.new(size);
@@ -161,12 +171,10 @@ pub fn print(
     while (line_iter.next()) |line| try lines.append(line);
 
     // remove trailing newlines
-    if (lines.items.len > 0) {
-        while (true) {
-            const last = lines.items[lines.items.len - 1];
-            if (last.len > 0) break;
-            _ = lines.pop();
-        }
+    while (lines.items.len > 0) {
+        const last = lines.items[lines.items.len - 1];
+        if (last.len > 0) break;
+        _ = lines.pop();
     }
 
     // find size of chunk
